@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer
 from datasets import load_dataset
-from config import MAX_LENGTH
+from src.config import MAX_LENGTH
 
 
 def get_tokenizer(tokenizer_path: str):
