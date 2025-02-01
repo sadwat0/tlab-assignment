@@ -80,6 +80,10 @@ class CustomRewardTrainer(RewardTrainer):
 
 def compute_metrics(eval_pred):
     logits_chosen, logits_rejected = eval_pred
+
+    logits_chosen = torch.tensor(logits_chosen)
+    logits_rejected = torch.tensor(logits_rejected)
+
     ratings = torch.arange(1, 11, dtype=torch.float32, device=logits_chosen.device)
 
     probs_chosen = torch.softmax(logits_chosen, dim=-1)
