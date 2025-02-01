@@ -78,6 +78,21 @@ class CustomRewardTrainer(RewardTrainer):
         return loss
 
 
+def compute_metrics(eval_pred):
+    logits_chosen, logits_rejected = eval_pred
+    ratings = torch.arange(1, 11, dtype=torch.float32, device=logits_chosen.device)
+
+    probs_chosen = torch.softmax(logits_chosen, dim=-1)
+    probs_rejected = torch.softmax(logits_rejected, dim=-1)
+
+    chosen = (probs_chosen * ratings).sum(dim=-1)
+    rejected = (probs_rejected * ratings).sum(dim=-1)
+
+    accuracy = (chosen > rejected).float().mean().item()
+
+    return {"accuracy": accuracy}
+
+
 def train_reward_model(output_model_dir):
     if WANDB_LOGGING:
         # pylint: disable=used-before-assignment
@@ -128,6 +143,7 @@ def train_reward_model(output_model_dir):
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        compute_metrics=compute_metrics,
     )
 
     metrics = trainer.evaluate()
