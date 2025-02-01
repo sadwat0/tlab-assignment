@@ -1,10 +1,10 @@
 from transformers import AutoTokenizer
 from datasets import load_dataset
-from config import MODEL_NAME, MAX_LENGTH
+from config import MAX_LENGTH
 
 
-def get_tokenizer():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, padding_side="left")
+def get_tokenizer(tokenizer_path: str):
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, padding_side="left")
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     return tokenizer
@@ -67,7 +67,7 @@ def load_and_split_dataset(
     test_size=0.2, train_subset_sizes=None, val_subset_size=None
 ):
     dataset = load_dataset("esfrankel17/HelpSteer2_binarized")["average_rating_split"]
-    dataset = dataset.train_test_split(test_size=test_size)
+    dataset = dataset.train_test_split(test_size=test_size, seed=42)
 
     if train_subset_sizes is not None:
         dataset["train"] = dataset["train"].select(range(train_subset_sizes))

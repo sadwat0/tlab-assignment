@@ -1,8 +1,15 @@
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+
+import argparse
 import torch
 from transformers import AutoModelForSequenceClassification
 from trl import RewardTrainer, RewardConfig
-from utils import get_tokenizer, format_reward_dataset, load_and_split_dataset
-from config import (
+from src.utils import get_tokenizer, format_reward_dataset, load_and_split_dataset
+from src.config import (
     WANDB_LOGGING,
     IS_ON_KAGGLE,
     MODEL_NAME,
@@ -22,7 +29,7 @@ if IS_ON_KAGGLE and WANDB_LOGGING:
     from kaggle_secrets import UserSecretsClient  # type: ignore
 
 
-def train_reward_model():
+def train_reward_model(output_model_dir):
     if WANDB_LOGGING:
         # pylint: disable=used-before-assignment
         if IS_ON_KAGGLE:
@@ -35,7 +42,7 @@ def train_reward_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
-    tokenizer = get_tokenizer()
+    tokenizer = get_tokenizer(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME, num_labels=1
     ).to(device)
@@ -81,8 +88,8 @@ def train_reward_model():
 
     trainer.train()
 
-    trainer.save_model(REWARD_MODEL_OUTPUT_DIR)
-    print("Reward model saved to:", REWARD_MODEL_OUTPUT_DIR)
+    trainer.save_model(output_model_dir)
+    print("Reward model saved to:", output_model_dir)
 
     metrics = trainer.evaluate()
     print("Post-training eval metrics:", metrics)
@@ -92,4 +99,12 @@ def train_reward_model():
 
 
 if __name__ == "__main__":
-    train_reward_model()
+    parser = argparse.ArgumentParser(description="Train reward model")
+    parser.add_argument(
+        "--output_model_dir",
+        type=str,
+        default=REWARD_MODEL_OUTPUT_DIR,
+        help="Directory to save trained model",
+    )
+    args = parser.parse_args()
+    train_reward_model(output_model_dir=args.output_model_dir)
