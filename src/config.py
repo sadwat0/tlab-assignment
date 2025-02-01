@@ -23,3 +23,6 @@ REINFORCE_OUTPUT_DIR = os.path.join(os.getcwd(), "reinforce_w_baseline_v2")
 
 # === Level 2 ===
 # TODO
+SECOND_REWARD_MODEL_OUTPUT_DIR = os.path.join(
+    os.getcwd(), "trained_second_reward_model"
+)

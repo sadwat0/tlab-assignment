@@ -6,7 +6,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import torch
-from transformers import AutoModelForSequenceClassification
+import torch.nn.functional as F
+from transformers import AutoModelForSequenceClassification, PreTrainedModel
 from trl import RewardTrainer, RewardConfig
 from src.utils import get_tokenizer, format_reward_dataset, load_and_split_dataset
 from src.config import (
@@ -19,6 +20,7 @@ from src.config import (
     TRAIN_BATCH_SIZE,
     EVAL_BATCH_SIZE,
     MAX_LENGTH,
+    SECOND_REWARD_MODEL_OUTPUT_DIR,
 )
 
 if WANDB_LOGGING:
@@ -27,6 +29,53 @@ if WANDB_LOGGING:
 # pylint: disable=import-error
 if IS_ON_KAGGLE and WANDB_LOGGING:
     from kaggle_secrets import UserSecretsClient  # type: ignore
+
+
+class CustomRewardTrainer(RewardTrainer):
+    def compute_loss(
+        self,
+        model,
+        inputs,
+        return_outputs=False,
+        num_items_in_batch=None,
+    ):
+        """
+        Updated compute_loss:
+            L_RM = - log (sum_{i=2}^{10} sum_{j=1}^{i-1} w_i * l_j)
+        """
+        logits_chosen = model(
+            input_ids=inputs["input_ids_chosen"],
+            attention_mask=inputs["attention_mask_chosen"],
+            return_dict=True,
+        )["logits"]
+        logits_rejected = model(
+            input_ids=inputs["input_ids_rejected"],
+            attention_mask=inputs["attention_mask_rejected"],
+            return_dict=True,
+        )["logits"]
+
+        winner_probabilities = F.softmax(logits_chosen, dim=-1)
+        loser_probabilities = F.softmax(logits_rejected, dim=-1)
+
+        # mask[i, j] = float(reward(i) > reward(j))
+        device = logits_chosen.device
+        rating_range = torch.arange(10, device=device)
+        mask = (
+            rating_range.view(-1, 1) > rating_range.view(1, -1)
+        ).float()  # shape: [10, 10]
+
+        # [batch_size, 10, 10]
+        prod = winner_probabilities.unsqueeze(2) * loser_probabilities.unsqueeze(1)
+        prob = (prod * mask).sum(dim=(1, 2))  # shape: [batch_size]
+
+        loss = -torch.log(prob + 1e-8).mean()
+
+        if return_outputs:
+            return loss, {
+                "logits_chosen": logits_chosen,
+                "logits_rejected": logits_rejected,
+            }
+        return loss
 
 
 def train_reward_model(output_model_dir):
@@ -44,7 +93,7 @@ def train_reward_model(output_model_dir):
 
     tokenizer = get_tokenizer(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_NAME, num_labels=1
+        MODEL_NAME, num_labels=10
     ).to(device)
 
     for param in model.parameters():
@@ -73,7 +122,7 @@ def train_reward_model(output_model_dir):
         gradient_checkpointing=True,
     )
 
-    trainer = RewardTrainer(
+    trainer = CustomRewardTrainer(
         model=model,
         tokenizer=tokenizer,
         args=training_args,
@@ -103,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_model_dir",
         type=str,
-        default=REWARD_MODEL_OUTPUT_DIR,
+        default=SECOND_REWARD_MODEL_OUTPUT_DIR,
         help="Directory to save trained model",
     )
     args = parser.parse_args()
