@@ -71,6 +71,8 @@ def train_reinforce(reward_model_path, output_model_dir):
     val_dataset = dataset["test"].map(
         lambda ex: format_reinforce_dataset(ex, tokenizer)
     )
+    train_dataset.set_format(type="torch", columns=["input_ids", "attention_mask"])
+    val_dataset.set_format(type="torch", columns=["input_ids", "attention_mask"])
 
     train_loader = DataLoader(
         train_dataset, batch_size=REINFORCE_BATCH_SIZE, shuffle=True
