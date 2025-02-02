@@ -100,7 +100,7 @@ def train_reinforce(reward_model_path, output_model_dir):
             ratings = torch.arange(
                 1, 11, dtype=probabilities.dtype, device=probabilities.device
             )
-            ratings = ratings * -1
+            # ratings = ratings * -1
             expected_rewards = (probabilities * ratings).sum(dim=-1)
 
         return expected_rewards
